@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GothamCash - BNB Mixer</title>
+  <title>Gotham.cash</title>
 
   <!-- web3.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
@@ -136,6 +136,67 @@
 	  color: #777;
 	  cursor: not-allowed;
 	}
+	
+	/* Pools buttons */
+	.pool-btn {
+	  flex: 1;
+	  padding: 8px;
+	  margin: 0 4px;
+	  background: #222;
+	  color: #eee;
+	  border-radius: 12px;
+	  border: 2px solid #444;
+	  font-weight: 600;
+	  cursor: pointer;
+	  transition: all 0.2s ease;
+	}
+	.pool-btn.active {
+	  background: #ffae00;
+	  color: #121212;
+	  border-color: #ffae00;
+	  box-shadow: 0 0 10px #ffae00;
+	}
+	
+	  /* no scroll on small screens */
+	  @media (max-width: 600px) {
+		html, body {
+		  overflow: hidden;
+		  height: 100%;
+		}
+	  }
+
+	  /* Fixed footer */
+	  .fixed-footer {
+		position: fixed;
+		bottom: 10px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 999;
+		opacity: 0.9;
+		background: #222;
+		padding: 8px 16px;
+		border-radius: 8px;
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+		font-family: sans-serif;
+		font-size: 14px;
+		white-space: nowrap;
+	  }
+
+	  .fixed-footer a {
+		margin-right: 12px;
+		text-decoration: none;
+	  }
+
+	  .fixed-footer a:last-child {
+		margin-right: 0;
+	  }
+
+	  .fixed-footer a[href*="telegram"] { color: #fff; }
+	  .fixed-footer a[href*="github"] { color: #fff; }
+	  .fixed-footer a[href*="docs"] { color: #fff; }
+	  .fixed-footer a[href*="twitter"] { color: #fff; }
+	  
+	  .fixed-footer a:visited { color: #fff; }
   </style>
 </head>
 <body>
@@ -143,6 +204,12 @@
     <h1>GothamCash</h1>
 
     <button id="connectWalletBtn">Connect Wallet</button>
+	
+	<div id="poolSelector" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+	  <button class="pool-btn active" data-pool="0.1">0.1 BNB</button>
+	  <button class="pool-btn" data-pool="1">1 BNB</button>
+	  <button class="pool-btn" data-pool="10">10 BNB</button>
+	</div>
 
     <div class="tabs">
       <div class="tab active" data-tab="deposit">Deposit 0.1 BNB</div>
@@ -175,48 +242,410 @@
     <div id="status"></div>
 
   </div>
+  
+  <div class="fixed-footer">
+	  <a href="https://t.me/your_channel" target="_blank" title="Telegram">Telegram</a>
+	  <a href="https://github.com/your_repo" target="_blank" title="GitHub">GitHub</a>
+	  <a href="https://docs.yoursite.com" target="_blank" title="Docs">Docs</a>
+	  <a href="https://twitter.com/your_account" target="_blank" title="Twitter">Twitter</a>
+  </div>
 
   <script>
 	const contractABI = [
-	  {
-		"inputs": [{"internalType":"bytes32","name":"commitment","type":"bytes32"}],
-		"name":"deposit",
-		"outputs":[],
-		"stateMutability":"payable",
-		"type":"function"
-	  },
-	  {
-		"inputs":[
-		  {"internalType":"bytes32","name":"nullifierHash","type":"bytes32"},
-		  {"internalType":"bytes32","name":"commitment","type":"bytes32"},
-		  {"internalType":"address payable","name":"recipient","type":"address"}
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "nullifier",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "secret",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "uint256",
+				"name": "deadline",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bytes",
+				"name": "signature",
+				"type": "bytes"
+			}
 		],
-		"name":"withdraw",
-		"outputs":[],
-		"stateMutability":"nonpayable",
-		"type":"function"
-	  },
-	  {
+		"name": "authorizeWithdrawal",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "changeOwner",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "commitment",
+				"type": "bytes32"
+			}
+		],
+		"name": "deposit",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
 		"inputs": [],
-		"name": "feesEnabled",
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "bytes32",
+				"name": "commitment",
+				"type": "bytes32"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			}
+		],
+		"name": "Deposited",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "bytes32",
+				"name": "commitment",
+				"type": "bytes32"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			}
+		],
+		"name": "ExpiredReclaimed",
+		"type": "event"
+	},
+	{
+		"inputs": [],
+		"name": "reclaimExpired",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "start",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "end",
+				"type": "uint256"
+			}
+		],
+		"name": "reclaimExpiredBatch",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bool",
+				"name": "enabled",
+				"type": "bool"
+			}
+		],
+		"name": "setFeesEnabled",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "bytes32",
+				"name": "nullifierHash",
+				"type": "bytes32"
+			},
+			{
+				"indexed": false,
+				"internalType": "bytes32",
+				"name": "commitment",
+				"type": "bytes32"
+			}
+		],
+		"name": "Withdrawn",
+		"type": "event"
+	},
+	{
+		"stateMutability": "nonpayable",
+		"type": "fallback"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "nullifier",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "secret",
+				"type": "bytes32"
+			}
+		],
+		"name": "withdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "commitmentList",
 		"outputs": [
-		  {
-			"internalType": "bool",
-			"name": "",
-			"type": "bool"
-		  }
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
+			}
 		],
 		"stateMutability": "view",
 		"type": "function"
-	  }
-	];
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
+			}
+		],
+		"name": "commitments",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
+			}
+		],
+		"name": "commitmentTimestamps",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "DEPOSIT_AMOUNT",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "EXPIRY_TIME",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "FEE_PERCENT",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "feesEnabled",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getCommitmentCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "commitment",
+				"type": "bytes32"
+			}
+		],
+		"name": "isExpired",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
+			}
+		],
+		"name": "nullifiers",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
+			}
+		],
+		"name": "withdrawalAuthorizations",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+];
 
     // Contract address (testnet)
-    const contractAddress = '0x8aafacc9027d51595b4519052e6b14a11cb46e18';
+    const contractAddress = '0x5c4bc532fBc6e59829f60EC81Fe067027fe06Cf8';
 
     let web3;
     let contract;
     let accounts = [];
+	
+	const contractMap = {
+	  "0.1": "0x5c4bc532fBc6e59829f60EC81Fe067027fe06Cf8", // pool 0.1
+	  "1": "0xc127f638cc08996e519e37bd64f2b3416be5ac45", // pool 1
+	  "10": "0xContractFor10BNBNotDeployedYet" // pool 10
+	};
+
+	let selectedPool = "0.1"; // default
 	
 	// Web3 in read-only (for the stats)
 	let web3Stats;
@@ -290,7 +719,6 @@
 
 	  statusEl.textContent = 'Generating note...';
 
-	  // Generate 32 bytes hex for nullifier and secret
 	  const randomHex = (bytes = 32) => {
 		const array = new Uint8Array(bytes);
 		window.crypto.getRandomValues(array);
@@ -299,20 +727,18 @@
 
 	  const nullifierHex = randomHex();
 	  const secretHex = randomHex();
-	  const fullNoteHex = nullifierHex + secretHex.slice(2);
-	  const commitment = web3.utils.keccak256(fullNoteHex);
 
-	  const note = `gothamcash-1:${nullifierHex}:${secretHex}`;
+	  const preimage = nullifierHex + secretHex.slice(2); // remove '0x' from secret
+	  const commitment = web3.utils.keccak256(preimage);
 
+	  const note = `gothamcash-${selectedPool.replace('.', '')}:${nullifierHex}:${secretHex}`;
 	  statusEl.textContent = 'Depositing...';
 
 	  try {
+		let depositAmount = web3.utils.toWei(selectedPool, "ether");
 		const value = await contract.methods.feesEnabled().call();
-		let depositAmount = web3.utils.toWei("0.1", "ether");
-
 		if (value) {
-		  // If the fees are activated, send 0.1 / (1 - 1%) ≈ 0.10101 ETH
-		  depositAmount = web3.utils.toWei((0.1 / 0.99).toFixed(5), "ether");
+		  depositAmount = web3.utils.toWei((parseFloat(selectedPool) / 0.99).toFixed(5), "ether");
 		}
 
 		await contract.methods.deposit(commitment).send({
@@ -320,15 +746,14 @@
 		  value: depositAmount
 		});
 
-		// Display the note
 		statusEl.textContent = "✅ Deposit confirmed!";
 		showNoteModal(note);
-
 	  } catch (err) {
 		console.error(err);
 		statusEl.textContent = 'Deposit error: ' + err.message;
 	  }
 	};
+
 
     // Withdraw button
 	document.getElementById('withdrawBtn').onclick = async () => {
@@ -340,10 +765,14 @@
 	  const note = document.getElementById('withdrawNote').value.trim();
 	  const recipient = document.getElementById('recipientAddress').value.trim();
 
-	  if (!note.startsWith("gothamcash-1:")) {
-		statusEl.textContent = 'Invalid note (wrong format).';
+	  if (!/^gothamcash-(01|1|10):0x[a-fA-F0-9]{64}:0x[a-fA-F0-9]{64}$/.test(note)) {
+		statusEl.textContent = 'Invalid note format.';
 		return;
 	  }
+
+	  const prefixMatch = note.match(/^gothamcash-(01|1|10):/);
+	  const notePool = prefixMatch[1] === "01" ? "0.1" : prefixMatch[1];
+	  contract = new web3.eth.Contract(contractABI, contractMap[notePool]);
 
 	  if (!web3.utils.isAddress(recipient)) {
 		statusEl.textContent = 'Please enter a valid BSC address.';
@@ -353,39 +782,51 @@
 	  statusEl.textContent = 'Analyzing note...';
 
 	  try {
-		// Extract data
 		const parts = note.split(':');
-		if (parts.length !== 3) {
-		  statusEl.textContent = 'Incorrectly formatted note.';
-		  return;
-		}
-
 		const nullifierHex = parts[1];
 		const secretHex = parts[2];
 
-		// Format verification
-		if (!nullifierHex.startsWith('0x') || !secretHex.startsWith('0x')) {
-		  statusEl.textContent = 'Invalid note: hexadecimal format expected.';
+		const preimage = nullifierHex + secretHex.slice(2);
+		const commitment = web3.utils.keccak256(preimage);
+
+		const commitmentExists = await contract.methods.commitments(commitment).call();
+		if (!commitmentExists) {
+		  statusEl.textContent = 'Commitment not found on chain. Withdrawal impossible.';
 		  return;
 		}
 
-		// Compound the full note as string hex for keccak256
-		const fullNoteHex = nullifierHex + secretHex.slice(2); // concatenate without 0x
+		const deadline = Math.floor(Date.now() / 1000) + 3600;
 
-		const commitment = web3.utils.keccak256(fullNoteHex);
-		const nullifierHash = web3.utils.keccak256(nullifierHex);
+		const messageHash = web3.utils.soliditySha3(
+		  { type: 'bytes32', value: nullifierHex },
+		  { type: 'bytes32', value: secretHex },
+		  { type: 'address', value: recipient },
+		  { type: 'uint256', value: deadline }
+		);
 
-		statusEl.textContent = 'Processing withdrawal...';
+		statusEl.textContent = 'Requesting signature...';
 
-		await contract.methods.withdraw(nullifierHash, commitment, recipient).send({ from: accounts[0] });
+		const signature = await web3.eth.personal.sign(messageHash, accounts[0]);
 
-		statusEl.textContent = 'Withdrawal processed successfully!';
+		statusEl.textContent = 'Authorizing withdrawal...';
 
+		await contract.methods
+		  .authorizeWithdrawal(nullifierHex, secretHex, deadline, signature)
+		  .send({ from: accounts[0] });
+
+		statusEl.textContent = 'Executing withdrawal...';
+
+		await contract.methods
+		  .withdraw(nullifierHex, secretHex)
+		  .send({ from: accounts[0] });
+
+		statusEl.textContent = '✅ Withdrawal successful!';
 	  } catch (err) {
 		console.error(err);
 		statusEl.textContent = 'Withdrawal error: ' + err.message;
 	  }
 	};
+
 	
 	document.getElementById('useConnectedAddress').addEventListener('change', function () {
 	  const recipientInput = document.getElementById('recipientAddress');
@@ -408,10 +849,10 @@
 	  if (!web3Stats || !contractStats) return;
 
 	  try {
-		const balanceWei = await web3Stats.eth.getBalance(contractAddress);
+		const balanceWei = await web3Stats.eth.getBalance(contractStats.options.address);
 		const balanceBNB = parseFloat(web3Stats.utils.fromWei(balanceWei, "ether"));
-		const count = Math.floor(balanceBNB / 0.1);
-		document.getElementById('depositCount').textContent = `Equivalent deposits: ${count}`;
+		const count = Math.floor(balanceBNB / parseFloat(selectedPool));
+		document.getElementById('depositCount').textContent = `Equivalent deposits in ${selectedPool} BNB pool: ${count}`;
 	  } catch (e) {
 		console.warn('Could not fetch contract balance');
 	  }
@@ -430,94 +871,125 @@
 	  return `${seconds} seconde${seconds > 1 ? "s" : ""}`;
 	}
 	
+	function switchPool(pool) {
+	  selectedPool = pool;
+
+	  document.querySelectorAll('.pool-btn').forEach(btn => {
+		btn.classList.toggle('active', btn.dataset.pool === pool);
+	  });
+
+	  const newAddress = contractMap[pool];
+	  if (web3) {
+		contract = new web3.eth.Contract(contractABI, newAddress);
+	  }
+	  if (web3Stats) {
+		contractStats = new web3Stats.eth.Contract(contractABI, newAddress);
+	  }
+
+	  // Updating labels & buttons
+	  document.querySelector('[data-tab="deposit"]').textContent = `Deposit ${pool} BNB`;
+	  document.querySelector('[data-tab="withdraw"]').textContent = `Withdraw ${pool} BNB`;
+	  document.getElementById('depositBtn').textContent = `Deposit ${pool} BNB`;
+	  document.getElementById('withdrawBtn').textContent = `Withdraw ${pool} BNB`;
+
+	  updateDepositStats();
+	}
+
+	// Click event
+	document.querySelectorAll('.pool-btn').forEach(btn => {
+	  btn.addEventListener('click', () => {
+		switchPool(btn.dataset.pool);
+	  });
+	});
+	
 	window.addEventListener('load', () => {
 	  initStatsReader();
 	  updateDepositStats();
 	});
   </script>
   
-<div id="noteModal" style="
-  display: none;
-  position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(3px);
-  z-index: 9999;
-  align-items: center;
-  justify-content: center;
-">
-  <div style="
-    background: #1a1a1a;
-    color: white;
-    padding: 1.5em;
-    border-radius: 10px;
-    width: 90%;
-    max-width: 500px;
-    text-align: center;
-    position: relative;
-  ">
-    <h3>🎉 Deposit confirmed</h3>
-	<br>
-    <p>Here's your note. Store it in a safe place:</p>
-    <input id="noteField" readonly style="
-      width: 100%;
-      background: #111;
-      color: #fff;
-      border: 1px solid #444;
-      padding: 0.6em;
-      margin-top: 0.5em;
-      border-radius: 6px;
-      font-size: 0.9em;
-    " />
-    <br>
-    <button id="copyNoteBtn" style="padding: 0.5em 1em; margin-bottom: 1em;">📋 Copy the note</button>
-    <center><div id="noteQR" style="margin: 1em auto;"></div></center>
-    <button onclick="closeNoteModal()" style="
-      background: #444;
-      color: white;
-      border: none;
-      padding: 0.5em 1em;
-      border-radius: 5px;
-      cursor: pointer;
-    ">Close</button>
-  </div>
-  <br>
-</div>
+	<div id="noteModal" style="
+	  display: none;
+	  position: fixed;
+	  top: 0; left: 0;
+	  width: 100vw; height: 100vh;
+	  background: rgba(0,0,0,0.6);
+	  backdrop-filter: blur(3px);
+	  z-index: 9999;
+	  align-items: center;
+	  justify-content: center;
+	">
+	  <div style="
+		background: #1a1a1a;
+		color: white;
+		padding: 1.5em;
+		border-radius: 10px;
+		width: 90%;
+		max-width: 500px;
+		text-align: center;
+		position: relative;
+	  ">
+		<h3>🎉 Deposit confirmed</h3>
+		<br>
+		<p>Here's your note. Store it in a safe place:</p>
+		<input id="noteField" readonly style="
+		  width: 100%;
+		  background: #111;
+		  color: #fff;
+		  border: 1px solid #444;
+		  padding: 0.6em;
+		  margin-top: 0.5em;
+		  border-radius: 6px;
+		  font-size: 0.9em;
+		" />
+		<br>
+		<button id="copyNoteBtn" style="padding: 0.5em 1em; margin-bottom: 1em;">📋 Copy the note</button>
+		<center><div id="noteQR" style="margin: 1em auto;"></div></center>
+		<button onclick="closeNoteModal()" style="
+		  background: #444;
+		  color: white;
+		  border: none;
+		  padding: 0.5em 1em;
+		  border-radius: 5px;
+		  cursor: pointer;
+		">Close</button>
+	  </div>
+	  <br>
+	</div>
 
-<script>
-	function showNoteModal(note) {
-	  document.getElementById('noteField').value = note;
-	  document.getElementById('noteModal').style.display = 'flex';
+	<script>
+		function showNoteModal(note) {
+		  document.getElementById('noteField').value = note;
+		  document.getElementById('noteModal').style.display = 'flex';
 
-	  // Copy on click
-	  document.getElementById('copyNoteBtn').onclick = () => {
-		navigator.clipboard.writeText(note)
-		  .then(() => {
-			document.getElementById('copyNoteBtn').textContent = '✅ Copied!';
-			setTimeout(() => {
-			  document.getElementById('copyNoteBtn').textContent = '📋 Copy the note';
-			}, 1500);
+		  // Copy on click
+		  document.getElementById('copyNoteBtn').onclick = () => {
+			navigator.clipboard.writeText(note)
+			  .then(() => {
+				document.getElementById('copyNoteBtn').textContent = '✅ Copied!';
+				setTimeout(() => {
+				  document.getElementById('copyNoteBtn').textContent = '📋 Copy the note';
+				}, 1500);
+			  });
+		  };
+
+		  // QR Code
+		  const qrContainer = document.getElementById('noteQR');
+		  qrContainer.innerHTML = ''; // Reset
+		  new QRCode(qrContainer, {
+			text: note,
+			width: 150,
+			height: 150,
+			colorDark: "#ffffff",
+			colorLight: "#1a1a1a",
+			correctLevel: QRCode.CorrectLevel.M
 		  });
-	  };
+		}
 
-	  // QR Code
-	  const qrContainer = document.getElementById('noteQR');
-	  qrContainer.innerHTML = ''; // Reset
-	  new QRCode(qrContainer, {
-		text: note,
-		width: 150,
-		height: 150,
-		colorDark: "#ffffff",
-		colorLight: "#1a1a1a",
-		correctLevel: QRCode.CorrectLevel.M
-	  });
-	}
-
-	function closeNoteModal() {
-	  document.getElementById('noteModal').style.display = 'none';
-	}
-</script>
+		function closeNoteModal() {
+		  document.getElementById('noteModal').style.display = 'none';
+		}
+	</script>
 
 </body>
 </html>
