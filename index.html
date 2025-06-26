@@ -185,6 +185,7 @@
 	  .fixed-footer a {
 		margin-right: 12px;
 		text-decoration: none;
+		color: #fff;
 	  }
 
 	  .fixed-footer a:last-child {
@@ -230,11 +231,7 @@
       <textarea id="withdrawNote" rows="3" placeholder="Enter the generated note..."></textarea>
 
       <label for="recipientAddress">Beneficiary</label>
-      <input id="recipientAddress" type="text" placeholder="BSC 0x address that will receive the funds" />
-	  <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-	    <input type="checkbox" id="useConnectedAddress" style="width: auto; margin: 0;" />
-	    Use the connected address
-	  </label>
+      <input id="recipientAddress" type="text" disabled />
 	  <br>
       <button id="withdrawBtn">Withdraw 0.1 BNB</button>
     </div>
@@ -244,10 +241,10 @@
   </div>
   
   <div class="fixed-footer">
-	  <a href="https://t.me/your_channel" target="_blank" title="Telegram">Telegram</a>
-	  <a href="https://github.com/your_repo" target="_blank" title="GitHub">GitHub</a>
-	  <a href="https://docs.yoursite.com" target="_blank" title="Docs">Docs</a>
-	  <a href="https://twitter.com/your_account" target="_blank" title="Twitter">Twitter</a>
+	  <a href="https://t.me/gotham_cash" target="_blank" title="Telegram">Telegram</a>
+	  <a href="https://github.com/GothamCash" target="_blank" title="GitHub">GitHub</a>
+	  <a href="https://gothamcash.gitbook.io/" target="_blank" title="Docs">Docs</a>
+	  <a href="https://x.com/GothamCash" target="_blank" title="Twitter">Twitter</a>
   </div>
 
   <script>
@@ -263,6 +260,11 @@
 				"internalType": "bytes32",
 				"name": "secret",
 				"type": "bytes32"
+			},
+			{
+				"internalType": "address",
+				"name": "authorized",
+				"type": "address"
 			},
 			{
 				"internalType": "uint256",
@@ -350,6 +352,38 @@
 		"type": "event"
 	},
 	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "bool",
+				"name": "enabled",
+				"type": "bool"
+			}
+		],
+		"name": "FeesToggled",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "previousOwner",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "OwnershipTransferred",
+		"type": "event"
+	},
+	{
 		"inputs": [],
 		"name": "reclaimExpired",
 		"outputs": [],
@@ -388,6 +422,29 @@
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "nullifier",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "commitment",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "address payable",
+				"name": "recipient",
+				"type": "address"
+			}
+		],
+		"name": "withdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"anonymous": false,
 		"inputs": [
 			{
@@ -401,42 +458,33 @@
 				"internalType": "bytes32",
 				"name": "nullifierHash",
 				"type": "bytes32"
-			},
-			{
-				"indexed": false,
-				"internalType": "bytes32",
-				"name": "commitment",
-				"type": "bytes32"
 			}
 		],
 		"name": "Withdrawn",
 		"type": "event"
 	},
 	{
-		"stateMutability": "nonpayable",
-		"type": "fallback"
+		"stateMutability": "payable",
+		"type": "receive"
 	},
 	{
 		"inputs": [
 			{
 				"internalType": "bytes32",
-				"name": "nullifier",
-				"type": "bytes32"
-			},
-			{
-				"internalType": "bytes32",
-				"name": "secret",
+				"name": "",
 				"type": "bytes32"
 			}
 		],
-		"name": "withdraw",
-		"outputs": [],
-		"stateMutability": "nonpayable",
+		"name": "commitmentAuthorizers",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
-	},
-	{
-		"stateMutability": "payable",
-		"type": "receive"
 	},
 	{
 		"inputs": [
@@ -564,25 +612,6 @@
 		"inputs": [
 			{
 				"internalType": "bytes32",
-				"name": "commitment",
-				"type": "bytes32"
-			}
-		],
-		"name": "isExpired",
-		"outputs": [
-			{
-				"internalType": "bool",
-				"name": "",
-				"type": "bool"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "bytes32",
 				"name": "",
 				"type": "bytes32"
 			}
@@ -632,15 +661,13 @@
 	}
 ];
 
-    // Contract address (testnet)
-    const contractAddress = '0x5c4bc532fBc6e59829f60EC81Fe067027fe06Cf8';
 
     let web3;
     let contract;
     let accounts = [];
 	
 	const contractMap = {
-	  "0.1": "0x5c4bc532fBc6e59829f60EC81Fe067027fe06Cf8", // pool 0.1
+	  "0.1": "0xA465fc45aBa8de8538076F0e0c0d22CC479EaD2B", // pool 0.1
 	  "1": "0xc127f638cc08996e519e37bd64f2b3416be5ac45", // pool 1
 	  "10": "0xContractFor10BNBNotDeployedYet" // pool 10
 	};
@@ -655,7 +682,7 @@
 	  const bscProvider = 'https://data-seed-prebsc-2-s2.bnbchain.org:8545'; //testnet
 	  //const bscProvider = 'https://bsc-dataseed.binance.org/'; //mainnet
 	  web3Stats = new Web3(bscProvider);
-	  contractStats = new web3Stats.eth.Contract(contractABI, contractAddress);
+	  contractStats = new web3Stats.eth.Contract(contractABI, contractMap[selectedPool]);
 	}
 
     const statusEl = document.getElementById('status');
@@ -679,7 +706,7 @@
         try {
           accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
           web3 = new Web3(window.ethereum);
-          contract = new web3.eth.Contract(contractABI, contractAddress);
+          contract = new web3.eth.Contract(contractABI, contractMap[selectedPool]);
           statusEl.textContent = `Connected on BSC: ${accounts[0]}`;
           connectWalletBtn.textContent = 'Wallet connected!';
           connectWalletBtn.disabled = true;
@@ -687,12 +714,9 @@
 		  // Links the beneficiary to the connected address, and locks the edits if the checkbox is checked
 		  const useAddressCheckbox = document.getElementById('useConnectedAddress');
 		  const recipientInput = document.getElementById('recipientAddress');
-
-		  if (useAddressCheckbox) {
-			useAddressCheckbox.checked = true;
-			recipientInput.value = accounts[0];
-			recipientInput.disabled = true;
-		  }
+		  
+		  recipientInput.value = accounts[0];
+		  recipientInput.disabled = true;
 			
 		  updateDepositStats();
 
@@ -727,19 +751,26 @@
 
 	  const nullifierHex = randomHex();
 	  const secretHex = randomHex();
-
 	  const preimage = nullifierHex + secretHex.slice(2); // remove '0x' from secret
 	  const commitment = web3.utils.keccak256(preimage);
 
 	  const note = `gothamcash-${selectedPool.replace('.', '')}:${nullifierHex}:${secretHex}`;
-	  statusEl.textContent = 'Depositing...';
+	  statusEl.textContent = 'Preparing deposit...';
 
 	  try {
-		let depositAmount = web3.utils.toWei(selectedPool, "ether");
-		const value = await contract.methods.feesEnabled().call();
-		if (value) {
-		  depositAmount = web3.utils.toWei((parseFloat(selectedPool) / 0.99).toFixed(5), "ether");
+		const baseAmount = web3.utils.toBN(web3.utils.toWei(selectedPool, "ether"));
+		const feesEnabled = await contract.methods.feesEnabled().call();
+
+		let depositAmount = baseAmount;
+
+		if (feesEnabled) {
+			// Solidity equivalent: (DEPOSIT_AMOUNT * 100) / (100 - FEE_PERCENT)
+			const numerator = baseAmount.mul(web3.utils.toBN(100));
+			const denominator = web3.utils.toBN(99); // since FEE_PERCENT is 1
+			depositAmount = numerator.div(denominator);
 		}
+
+		statusEl.textContent = `Depositing ${web3.utils.fromWei(depositAmount)} BNB...`;
 
 		await contract.methods.deposit(commitment).send({
 		  from: accounts[0],
@@ -772,6 +803,7 @@
 
 	  const prefixMatch = note.match(/^gothamcash-(01|1|10):/);
 	  const notePool = prefixMatch[1] === "01" ? "0.1" : prefixMatch[1];
+	  const contractAddress = contractMap[notePool];
 	  contract = new web3.eth.Contract(contractABI, contractMap[notePool]);
 
 	  if (!web3.utils.isAddress(recipient)) {
@@ -798,6 +830,7 @@
 		const deadline = Math.floor(Date.now() / 1000) + 3600;
 
 		const messageHash = web3.utils.soliditySha3(
+		  { type: 'address', value: contractAddress },
 		  { type: 'bytes32', value: nullifierHex },
 		  { type: 'bytes32', value: secretHex },
 		  { type: 'address', value: recipient },
@@ -811,13 +844,13 @@
 		statusEl.textContent = 'Authorizing withdrawal...';
 
 		await contract.methods
-		  .authorizeWithdrawal(nullifierHex, secretHex, deadline, signature)
+		  .authorizeWithdrawal(nullifierHex, secretHex, recipient, deadline, signature)
 		  .send({ from: accounts[0] });
 
 		statusEl.textContent = 'Executing withdrawal...';
 
 		await contract.methods
-		  .withdraw(nullifierHex, secretHex)
+		  .withdraw(nullifierHex, commitment, accounts[0])
 		  .send({ from: accounts[0] });
 
 		statusEl.textContent = '✅ Withdrawal successful!';
@@ -826,24 +859,6 @@
 		statusEl.textContent = 'Withdrawal error: ' + err.message;
 	  }
 	};
-
-	
-	document.getElementById('useConnectedAddress').addEventListener('change', function () {
-	  const recipientInput = document.getElementById('recipientAddress');
-	  if (this.checked) {
-		if (accounts.length > 0) {
-		  recipientInput.value = accounts[0];
-		  recipientInput.disabled = true;
-		} else {
-		  statusEl.textContent = 'No connected wallet address available.';
-		  this.checked = false;
-		  recipientInput.disabled = false;
-		}
-	  } else {
-		recipientInput.value = '';
-		recipientInput.disabled = false;
-	  }
-	});
 	
 	async function updateDepositStats() {
 	  if (!web3Stats || !contractStats) return;
